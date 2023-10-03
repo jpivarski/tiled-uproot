@@ -29,7 +29,7 @@ classifiers = [
   "Typing :: Typed",
 ]
 dynamic = ["version"]
-dependencies = []
+dependencies = ["uproot>=5", "awkward>=2", "tiled[client]"]
 
 [project.optional-dependencies]
 test = [
