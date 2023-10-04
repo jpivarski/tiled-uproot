@@ -59,7 +59,7 @@ class CollectedData:
             self.entry_offsets.append(self.entry_offsets[-1] + num_entries)
 
             split_filename = filename.split("/")
-            prefix = "/".join(split_filename)
+            prefix = "/".join(split_filename[:-1]) + "/"
             last_name = split_filename[-1]
             prefix_era = self.prefix_eras.get(prefix)
             if prefix_era is None:
@@ -86,40 +86,22 @@ class CollectedData:
 
     def final(self):
         with self.lock:
-            eras = ak.from_iter(
+            return ak.Array(
                 [
                     {
-                        "treename": x["treename"],
-                        "names": x["names"],
-                        "interpretations": x["interpretations"],
+                        "era": [
+                            {
+                                "treename": x["treename"],
+                                "names": x["names"],
+                                "interpretations": x["interpretations"],
+                            }
+                            for x in self.eras.values()
+                        ],
+                        "offsets": self.entry_offsets,
+                        "prefix": [x["prefix"] for x in self.prefix_eras.values()],
+                        "file": self.lookup_table,
                     }
-                    for x in self.eras.values()
-                ],
-                highlevel=False,
-            )
-            entry_offsets = ak.from_iter(self.entry_offsets, highlevel=False)
-            prefix_eras = ak.from_iter(
-                [x["prefix"] for x in self.prefix_eras.values()], highlevel=False
-            )
-            lookup_table = ak.from_iter(self.lookup_table, highlevel=False)
-            return ak.Array(
-                ak.contents.RecordArray(
-                    [
-                        ak.contents.ListOffsetArray(
-                            ak.index.Index64([0, len(eras)]), eras
-                        ),
-                        ak.contents.ListOffsetArray(
-                            ak.index.Index64([0, len(entry_offsets)]), entry_offsets
-                        ),
-                        ak.contents.ListOffsetArray(
-                            ak.index.Index64([0, len(prefix_eras)]), prefix_eras
-                        ),
-                        ak.contents.ListOffsetArray(
-                            ak.index.Index64([0, len(lookup_table)]), lookup_table
-                        ),
-                    ],
-                    ["era", "offsets", "prefix", "file"],
-                )
+                ]
             )
 
 
@@ -139,6 +121,8 @@ if __name__ == "__main__":
     collected_data = CollectedData()
     for filename_treename in files:
         collected_data.collect(filename_treename)
+
+    array = collected_data.final()
 
     # upload_to_tiled(
     #     "http://127.0.0.1:8000?api_key=5b0076d3e33202d55884b2428a4f405e3ca84510c8c6b60fbe60d393998abbb0",
