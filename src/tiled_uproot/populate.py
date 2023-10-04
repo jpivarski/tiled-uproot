@@ -11,7 +11,8 @@ import uproot
 
 class CollectedData:
     def __init__(self, prefix_depth=1):
-        assert isinstance(prefix_depth, numbers.Integral) and prefix_depth >= 1
+        assert isinstance(prefix_depth, numbers.Integral)
+        assert prefix_depth >= 1
         self.prefix_depth = prefix_depth
 
         self.lock = threading.Lock()
@@ -26,7 +27,7 @@ class CollectedData:
         with uproot.open({filename: None}) as file:
             try:
                 tree = file[treename]
-            except:
+            except Exception:
                 num_entries = 0
             else:
                 branches = tree.values(recursive=True)
@@ -72,8 +73,8 @@ class CollectedData:
                 split_filename = filename.split("/")
                 assert len(split_filename) >= self.prefix_depth
 
-                prefix = "/".join(split_filename[:-self.prefix_depth]) + "/"
-                last_name = "/".join(split_filename[-self.prefix_depth:])
+                prefix = "/".join(split_filename[: -self.prefix_depth]) + "/"
+                last_name = "/".join(split_filename[-self.prefix_depth :])
                 prefix_era = self.prefix_eras.get(prefix)
                 if prefix_era is None:
                     prefix_era = self.prefix_eras[prefix] = {
@@ -111,6 +112,7 @@ class CollectedData:
                     }
                 ]
             )
+
 
 def concatenate(arrays):
     offsets = [0]
