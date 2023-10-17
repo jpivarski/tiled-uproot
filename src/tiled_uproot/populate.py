@@ -154,11 +154,6 @@ def concatenate(arrays):
     )
 
 
-def upload_to_tiled(url, name, metadata_as_array):
-    client = tiled.client.from_uri(url)
-    client.write_awkward(metadata_as_array, key=name)
-
-
 if __name__ == "__main__":
     files = [
         {
@@ -175,8 +170,22 @@ if __name__ == "__main__":
 
     final = concatenate([array, array, array])
 
-    upload_to_tiled(
-        "http://127.0.0.1:8000?api_key=685321edc366836cb993d8a520b9d7c83d0e0ce147555df2f234efaaefe2677a",
-        "dataset_name",
-        final,
-    )
+    import tempfile
+    from tiled.catalog import in_memory
+    from tiled.server.app import build_app
+    from tiled.client import Context, from_context
+
+    # Build an app equivalent to `tiled serve catalog --temp`
+    tmpdir = tempfile.TemporaryDirectory()
+    catalog = in_memory(writable_storage=tmpdir.name)
+    app = build_app(catalog)
+
+    # Run the app event loop on a background thread.
+    context = Context.from_app(app)
+    client = from_context(context)
+
+    # Write to the database
+    client.write_awkward(final, key="dataset_name")
+
+    # Read from the database
+    client["dataset_name"]["file", "filename"].show()
