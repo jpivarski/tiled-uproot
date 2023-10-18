@@ -47,10 +47,12 @@ class _TiledBranch:
 
 
 class _SeekData:
-    def __init__(self, offsets, seeks, sizes):
-        self._offsets = offsets
+    def __init__(self, stops, seeks, bytes):
+        self._offsets = np.empty(len(stops) + 1, dtype=stops.dtype)
+        self._offsets[0] = 0
+        self._offsets[1:] = stops
         self._seeks = seeks
-        self._sizes = sizes
+        self._bytes = bytes
 
     @property
     def offsets(self):
@@ -61,8 +63,8 @@ class _SeekData:
         return self._seeks
 
     @property
-    def sizes(self):
-        return self._sizes
+    def bytes(self):
+        return self._bytes
 
 
 class TiledUproot(Mapping):
@@ -268,24 +270,28 @@ class TiledUproot(Mapping):
 
                 self._filenames[index_start + j] = prefix + data["filename"]
 
-    # def fetch_seekdata(self, index_start, index_stop, branches):
-    #     if not all(i in self._seekdata for i in range(index_start, index_stop)):
-    #         HERE
+    def fetch_seekdata(self, index_start, index_stop, branches):
+        branches_set = set(branches)
+        if not all(
+            len(branches_set.difference(self._seekdata.get(i, ()))) == 0
+            for i in range(index_start, index_stop)
+        ):
+            fetched = self.client[0, "file", index_start:index_stop, "tree", branches]
 
-    #     for i in range(index_start, index_stop):
-    #         if i not in self._seekdata:
-    #             self._seekdata[i] = {}
+            for j, data in enumerate(fetched):
+                i = index_start + j
 
-    #         missing_branches = branches.difference(self._seekdata[i])
-    #         fetched = self.client[0, "file", i, "tree", missing_branches]
+                seekdata = self._seekdata.get(i)
+                if seekdata is None:
+                    seekdata = self._seekdata[i] = {}
 
-    #         for name in missing_branches:
-    #             offsets = np.empty(len(fetched[name]) + 1)
-    #             offsets[0] = 0
-    #             offsets[1:] = ak.to_numpy(fetched[name, "stop"])
-
-    #             self._seekdata[i][name] = (
-    #             )
+                for name in branches:
+                    if name not in seekdata:
+                        seekdata[name] = _SeekData(
+                            ak.to_numpy(data[name, "stop"]),
+                            ak.to_numpy(data[name, "seek"]),
+                            ak.to_numpy(data[name, "bytes"]),
+                        )
 
     @property
     def aliases(self):
