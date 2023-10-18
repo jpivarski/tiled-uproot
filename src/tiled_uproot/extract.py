@@ -2,7 +2,6 @@ from __future__ import annotations
 
 import pickle
 import sys
-from collections.abc import Mapping
 
 import awkward as ak
 import numpy as np
@@ -11,11 +10,10 @@ import uproot
 from uproot._util import no_filter
 
 
-class _TiledBranch:
-    def __init__(self, name, interpretation, parent):
+class TiledBranch:
+    def __init__(self, name, interpretation):
         self._name = name
         self._interpretation = interpretation
-        self._parent = parent
 
     @property
     def name(self):
@@ -26,64 +24,25 @@ class _TiledBranch:
         return self._interpretation
 
     @property
-    def parent(self):
-        return self._parent
-
-    @property
     def typename(self):
         if self.interpretation is None:
             return "unknown"
         return self.interpretation.typename
 
-    @property
-    def cache_key(self):
-        return self.name
 
-    def entries_to_ranges_or_baskets(self, entry_start, entry_stop):
-        # print(entry_start, entry_stop)
-        # print(repr(self._parent.offsets))
-
-        raise NotImplementedError
-
-
-class _SeekData:
-    def __init__(self, stops, seeks, bytes):
-        self._offsets = np.empty(len(stops) + 1, dtype=stops.dtype)
-        self._offsets[0] = 0
-        self._offsets[1:] = stops
-        self._seeks = seeks
-        self._bytes = bytes
-
-    @property
-    def offsets(self):
-        return self._offsets
-
-    @property
-    def seeks(self):
-        return self._seeks
-
-    @property
-    def bytes(self):
-        return self._bytes
-
-
-class TiledUproot(Mapping):
+class TiledUproot:
     def __init__(self, client: tiled.client.awkward.AwkwardClient):
         self._client = client
-        self._file = None
         self._name = None
         self._keys = None
         self._items = None
-        self._offsets = None
+        self._offsets = ak.to_numpy(client[0, "offsets"])
         self._prefix = {}
         self._filenames = {}
+        self._eras = {}
         self._treenames = {}
         self._interpretations = {}
         self._seekdata = {}
-
-    @property
-    def tree(self):
-        return self
 
     @property
     def client(self):
@@ -153,8 +112,7 @@ class TiledUproot(Mapping):
                     else:
                         values[where[name]] = interpretation
             self._items = [
-                (k, _TiledBranch(k, pickle.loads(values[i]), self))
-                for k, i in where.items()
+                (k, TiledBranch(k, pickle.loads(values[i]))) for k, i in where.items()
             ]
         return self._items
 
@@ -171,16 +129,6 @@ class TiledUproot(Mapping):
         return [v for k, v in self.items()]
 
     itervalues = values
-
-    @property
-    def branches(self):
-        return self.values()
-
-    def __iter__(self):
-        yield from self.keys()
-
-    def __len__(self):
-        return len(self.keys())
 
     def __getitem__(self, where):
         for k, v in self.items():
@@ -215,35 +163,26 @@ class TiledUproot(Mapping):
         )
 
     @property
-    def offsets(self):
-        if self._offsets is None:
-            self._offsets = ak.to_numpy(self.client[0, "offsets"])
-        return self._offsets
-
-    @property
     def num_entries(self):
-        return self.offsets[-1]
+        return self._offsets[-1]
 
-    def file_index(self, entry):
-        offs = self.offsets
-        if 0 <= entry < offs[-1]:
-            return np.searchsorted(offs, entry, side="right") - 1
+    def _file_index(self, entry):
+        if 0 <= entry < self._offsets[-1]:
+            return np.searchsorted(self._offsets, entry, side="right") - 1
         return None
 
-    def file_index_range(self, entry_start, entry_stop):
-        offs = self.offsets
-
-        e1 = max(0, min(offs[-1], entry_start))
-        e2 = max(e1, min(offs[-1], entry_stop))
+    def _file_index_range(self, entry_start, entry_stop):
+        e1 = max(0, min(self._offsets[-1], entry_start))
+        e2 = max(e1, min(self._offsets[-1], entry_stop))
         if e1 == e2:
             return 0, 0
 
-        i1, i2 = np.searchsorted(offs, [e1, e2], side="right") - 1
-        if offs[i2] != e2:
+        i1, i2 = np.searchsorted(self._offsets, [e1, e2], side="right") - 1
+        if self._offsets[i2] != e2:
             i2 += 1
         return i1, i2
 
-    def fetch_filedata(self, index_start, index_stop):
+    def _fetch_filedata(self, index_start, index_stop):
         if not all(i in self._filenames for i in range(index_start, index_stop)):
             fetched = self.client[
                 0, "file", index_start:index_stop, ["filename", "era", "prefix"]
@@ -269,8 +208,9 @@ class TiledUproot(Mapping):
                     ]
 
                 self._filenames[index_start + j] = prefix + data["filename"]
+                self._eras[index_start + j] = era_index
 
-    def fetch_seekdata(self, index_start, index_stop, branches):
+    def _fetch_seekdata(self, index_start, index_stop, branches):
         branches_set = set(branches)
         if not all(
             len(branches_set.difference(self._seekdata.get(i, ()))) == 0
@@ -287,15 +227,7 @@ class TiledUproot(Mapping):
 
                 for name in branches:
                     if name not in seekdata:
-                        seekdata[name] = _SeekData(
-                            ak.to_numpy(data[name, "stop"]),
-                            ak.to_numpy(data[name, "seek"]),
-                            ak.to_numpy(data[name, "bytes"]),
-                        )
-
-    @property
-    def aliases(self):
-        return {}
+                        seekdata[name] = data[name]
 
     def arrays(
         self,
@@ -321,8 +253,33 @@ class TiledUproot(Mapping):
         if interpretation_executor is None:
             interpretation_executor = uproot.source.futures.TrivialExecutor()
 
+        num = self.num_entries
+        if entry_start is None:
+            entry_start = 0
+        elif entry_start < 0:
+            entry_start += num
+        entry_start = min(num, max(0, entry_start))
+
+        if entry_stop is None:
+            entry_stop = num
+        elif entry_stop < 0:
+            entry_stop += num
+        entry_stop = min(num, max(0, entry_stop))
+
+        if entry_stop < entry_start:
+            entry_stop = entry_start
+
+        index_start, index_stop = self._file_index_range(entry_start, entry_stop)
+
+        # fetch from Tiled
+        self.name  # noqa: B018
+        self.keys()
+        self._fetch_filedata(index_start, index_stop)
+
         return uproot.behaviors.TBranch.HasBranches.arrays(
-            self,
+            TiledUproot._FakeTree(
+                self, entry_start, entry_stop, index_start, index_stop
+            ),
             expressions=expressions,
             cut=cut,
             filter_name=filter_name,
@@ -339,3 +296,128 @@ class TiledUproot(Mapping):
             ak_add_doc=ak_add_doc,
             how=how,
         )
+
+    class _FakeBranch:
+        def __init__(self, parent, name):
+            self._parent = parent
+            self._name = name
+            self._interpretation = None
+
+        @property
+        def parent(self):
+            return self._parent
+
+        @property
+        def name(self):
+            return self._name
+
+        @property
+        def tree(self):
+            return self._parent
+
+        @property
+        def interpretation(self):
+            if self._interpretation is None:
+                tree = self._parent
+                tu = tree._parent
+                for i in range(tree._index_start, tree._index_stop):
+                    interp = tu._interpretations[tu._eras[i]]
+                    if self._interpretation is None:
+                        self._interpretation = interp
+                    elif self._interpretation.cache_key != interp.cache_key:
+                        msg = f"interpretation of TBranch {self._name!r} changed in file\n\n    {tu._filenames[i]}\n\nset entry_stop={tu._offsets[i]} to avoid it"
+                        raise TypeError(msg)
+
+                tree._branches_touched.append(self._name)
+
+            return self._interpretation
+
+        @property
+        def cache_key(self):
+            return self._name
+
+        def entries_to_ranges_or_baskets(self, entry_start, entry_stop):
+            self._parent.maybe_fetch_seekdata()
+
+            out = []
+            tree = self._parent
+            tu = tree._parent
+            for i in range(tree._index_start, tree._index_stop):
+                global_start = tu._offsets[i]
+
+                for seekdata in tu._seekdata[i][self._name]:
+                    global_stop = tu._offsets[i] + seekdata["stop"]
+
+                    if (
+                        global_stop > global_start
+                        and entry_start < global_stop
+                        and global_start <= entry_stop
+                    ):
+                        byte_start = seekdata["seek"]
+                        byte_stop = byte_start + seekdata["bytes"]
+                        out.append((len(out), (byte_start, byte_stop)))
+                        tree._range_to_file_index.append(i)
+
+                    global_start = global_stop
+
+            return out
+
+    class _FakeTree:
+        def __init__(self, parent, entry_start, entry_stop, index_start, index_stop):
+            self._parent = parent
+            self._entry_start = entry_start
+            self._entry_stop = entry_stop
+            self._index_start = index_start
+            self._index_stop = index_stop
+
+            self._file = TiledUproot._FakeFile(self)
+            self._branches = [TiledUproot._FakeBranch(self, x) for x in self._parent]
+            self._branchesdict = {x.name: x for x in self._branches}
+            self._branches_touched = []
+            self._fetched = False
+            self._range_to_file_index = []
+
+        @property
+        def parent(self):
+            return self._parent
+
+        def itervalues(
+            self,
+            *,
+            filter_name=no_filter,  # noqa: ARG002
+            filter_typename=no_filter,  # noqa: ARG002
+            filter_branch=no_filter,  # noqa: ARG002
+            recursive=True,  # noqa: ARG002
+        ):
+            return self._branches
+
+        @property
+        def tree(self):
+            return self
+
+        @property
+        def num_entries(self):
+            return self._parent.num_entries
+
+        @property
+        def aliases(self):
+            return {}
+
+        def get(self, name):
+            return self._branchesdict[name]
+
+        def maybe_fetch_seekdata(self):
+            if not self._fetched:
+                self._parent._fetch_seekdata(
+                    self._index_start, self._index_stop, self._branches_touched
+                )
+                self._fetched = True
+
+    class _FakeFile:
+        def __init__(self, parent):
+            self._parent = parent
+            self._source = TiledUproot._FakeSource(self)
+
+    class _FakeSource:
+        def __init__(self, parent):
+            self._parent = parent

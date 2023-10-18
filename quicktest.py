@@ -40,4 +40,4 @@ root_metadata = collected_data.to_array()
 
 tree = tiled_uproot.extract.TiledUproot(root_metadata)
 
-tree.arrays(["nMuon"], entry_start=100, entry_stop=1000).show(type=True)
+tree.arrays(["nMuon", "Muon_pt"], entry_start=100, entry_stop=10000).show(type=True)
