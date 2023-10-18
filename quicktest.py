@@ -6,7 +6,8 @@ import tiled_uproot
 
 files = [
     {
-        "/home/jpivarski/storage/data/Run2018D-DoubleMuon-Nano25Oct2019_ver2-v1-974F28EE-0FCE-4940-92B5-870859F880B1.root": "Events"
+        #         "/home/jpivarski/storage/data/Run2018D-DoubleMuon-Nano25Oct2019_ver2-v1-974F28EE-0FCE-4940-92B5-870859F880B1.root": "Events"
+        "/home/jpivarski/storage/data/Run2012BC_DoubleMuParked_Muons.root": "Events"
     }
 ]
 files = uproot._util.regularize_files(files, steps_allowed=False)
@@ -38,3 +39,5 @@ root_metadata = collected_data.to_array()
 # root_metadata = client["root_metadata"].read()
 
 tree = tiled_uproot.extract.TiledUproot(root_metadata)
+
+tree.arrays(["nMuon"], entry_start=100, entry_stop=1000).show(type=True)
