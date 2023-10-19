@@ -1,6 +1,11 @@
 from __future__ import annotations
 
+import tempfile
+
 import uproot
+from tiled.catalog import in_memory
+from tiled.client import Context, from_context
+from tiled.server.app import build_app
 
 import tiled_uproot
 
@@ -17,11 +22,6 @@ for filename_treename in files:
     collected_data.collect(filename_treename)
 
 root_metadata = collected_data.to_array()
-
-import tempfile
-from tiled.catalog import in_memory
-from tiled.server.app import build_app
-from tiled.client import Context, from_context
 
 # Build an app equivalent to `tiled serve catalog --temp`
 tmpdir = tempfile.TemporaryDirectory()
