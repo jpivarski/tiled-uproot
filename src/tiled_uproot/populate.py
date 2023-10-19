@@ -5,7 +5,6 @@ import pickle
 import threading
 
 import awkward as ak
-import tiled.client
 import uproot
 
 
@@ -27,7 +26,7 @@ class CollectedData:
         with uproot.open({filename: None}) as file:
             try:
                 tree = file[treename]
-            except Exception:
+            except Exception:  # pylint: disable=W0718
                 num_entries = 0
             else:
                 branches = tree.values(recursive=True)
@@ -152,40 +151,3 @@ def concatenate(arrays):
             ["offsets", "file", "era", "prefix"],
         )
     )
-
-
-if __name__ == "__main__":
-    files = [
-        {
-            "/home/jpivarski/storage/data/Run2018D-DoubleMuon-Nano25Oct2019_ver2-v1-974F28EE-0FCE-4940-92B5-870859F880B1.root": "Events"
-        }
-    ]
-    files = uproot._util.regularize_files(files, steps_allowed=False)
-
-    collected_data = CollectedData()
-    for filename_treename in files:
-        collected_data.collect(filename_treename)
-
-    array = collected_data.to_array()
-
-    final = concatenate([array, array, array])
-
-    import tempfile
-    from tiled.catalog import in_memory
-    from tiled.server.app import build_app
-    from tiled.client import Context, from_context
-
-    # Build an app equivalent to `tiled serve catalog --temp`
-    tmpdir = tempfile.TemporaryDirectory()
-    catalog = in_memory(writable_storage=tmpdir.name)
-    app = build_app(catalog)
-
-    # Run the app event loop on a background thread.
-    context = Context.from_app(app)
-    client = from_context(context)
-
-    # Write to the database
-    client.write_awkward(final, key="dataset_name")
-
-    # Read from the database
-    client["dataset_name"]["file", "filename"].show()
