@@ -5,7 +5,6 @@ import pickle
 import threading
 
 import awkward as ak
-import tiled.client
 import uproot
 
 
@@ -27,7 +26,7 @@ class CollectedData:
         with uproot.open({filename: None}) as file:
             try:
                 tree = file[treename]
-            except Exception:
+            except Exception:  # pylint: disable=W0718
                 num_entries = 0
             else:
                 branches = tree.values(recursive=True)
@@ -151,32 +150,4 @@ def concatenate(arrays):
             ],
             ["offsets", "file", "era", "prefix"],
         )
-    )
-
-
-def upload_to_tiled(url, name, metadata_as_array):
-    client = tiled.client.from_uri(url)
-    client.write_awkward(metadata_as_array, key=name)
-
-
-if __name__ == "__main__":
-    files = [
-        {
-            "/home/jpivarski/storage/data/Run2018D-DoubleMuon-Nano25Oct2019_ver2-v1-974F28EE-0FCE-4940-92B5-870859F880B1.root": "Events"
-        }
-    ]
-    files = uproot._util.regularize_files(files, steps_allowed=False)
-
-    collected_data = CollectedData()
-    for filename_treename in files:
-        collected_data.collect(filename_treename)
-
-    array = collected_data.to_array()
-
-    final = concatenate([array, array, array])
-
-    upload_to_tiled(
-        "http://127.0.0.1:8000?api_key=685321edc366836cb993d8a520b9d7c83d0e0ce147555df2f234efaaefe2677a",
-        "dataset_name",
-        final,
     )
