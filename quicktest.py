@@ -38,6 +38,8 @@ root_metadata = collected_data.to_array()
 # # Read from the database
 # root_metadata = client["root_metadata"].read()
 
-tree = tiled_uproot.extract.TiledUproot(root_metadata)
+tree = tiled_uproot.extract.TiledUproot("name", root_metadata)
 
-tree.arrays(["nMuon", "Muon_pt"], entry_start=100, entry_stop=10000).show(type=True)
+tree.arrays(["nMuon", "Muon_pt", "Muon_eta"], entry_start=100, entry_stop=10000).show(
+    type=True
+)
