@@ -66,8 +66,8 @@ class TiledUproot:
         filter_name=no_filter,
         filter_typename=no_filter,
         filter_branch=no_filter,
-        recursive=True,  # noqa: ARG002
-        full_paths=True,  # noqa: ARG002
+        recursive=True,  # noqa: ARG002 pylint: disable=W0613
+        full_paths=True,  # noqa: ARG002 pylint: disable=W0613
     ):
         if (
             filter_name is not no_filter
@@ -97,8 +97,8 @@ class TiledUproot:
         filter_name=no_filter,
         filter_typename=no_filter,
         filter_branch=no_filter,
-        recursive=True,  # noqa: ARG002
-        full_paths=True,  # noqa: ARG002
+        recursive=True,  # noqa: ARG002 pylint: disable=W0613
+        full_paths=True,  # noqa: ARG002 pylint: disable=W0613
     ):
         if (
             filter_name is not no_filter
@@ -127,10 +127,10 @@ class TiledUproot:
     def values(
         self,
         *,
-        filter_name=no_filter,  # noqa: ARG002
-        filter_typename=no_filter,  # noqa: ARG002
-        filter_branch=no_filter,  # noqa: ARG002
-        recursive=True,  # noqa: ARG002
+        filter_name=no_filter,  # noqa: ARG002 pylint: disable=W0613
+        filter_typename=no_filter,  # noqa: ARG002 pylint: disable=W0613
+        filter_branch=no_filter,  # noqa: ARG002 pylint: disable=W0613
+        recursive=True,  # noqa: ARG002 pylint: disable=W0613
     ):
         return [v for k, v in self.items()]
 
@@ -269,7 +269,7 @@ class TiledUproot:
         index_start, index_stop = self._file_index_range(entry_start, entry_stop)
 
         # fetch from Tiled
-        self.name  # noqa: B018
+        self.name  # noqa: B018 pylint: disable=W0104
         self.keys()
         self._fetch_filedata(index_start, index_stop)
 
@@ -415,10 +415,10 @@ class TiledUproot:
         def itervalues(
             self,
             *,
-            filter_name=no_filter,  # noqa: ARG002
-            filter_typename=no_filter,  # noqa: ARG002
-            filter_branch=no_filter,  # noqa: ARG002
-            recursive=True,  # noqa: ARG002
+            filter_name=no_filter,  # noqa: ARG002 pylint: disable=W0613
+            filter_typename=no_filter,  # noqa: ARG002 pylint: disable=W0613
+            filter_branch=no_filter,  # noqa: ARG002 pylint: disable=W0613
+            recursive=True,  # noqa: ARG002 pylint: disable=W0613
         ):
             return self._branches
 

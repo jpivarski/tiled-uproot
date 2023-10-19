@@ -26,7 +26,7 @@ class CollectedData:
         with uproot.open({filename: None}) as file:
             try:
                 tree = file[treename]
-            except Exception:
+            except Exception:  # pylint: disable=W0718
                 num_entries = 0
             else:
                 branches = tree.values(recursive=True)
