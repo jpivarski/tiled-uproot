@@ -40,7 +40,7 @@ class TiledUproot:
         self._keys = None
         self._items = None
         self._offsets = ak.to_numpy(client[0, "offsets"])
-        self._treename = self.client[0, "era", -1, "treename"]
+        self._treename = self.client[:, "era", -1, "treename"][0]
         self._prefix = {}
         self._filenames = {}
         self._eras = {}
@@ -197,7 +197,7 @@ class TiledUproot:
             for j, data in enumerate(fetched):
                 era_index = data["era"]
                 if era_index not in self._treenames:
-                    era = self.client[0, "era", era_index]
+                    era = self.client[:, "era", era_index][0]
                     self._treenames[era_index] = era["treename"]
                     self._interpretations[era_index] = dict(
                         zip(
@@ -210,8 +210,8 @@ class TiledUproot:
                 prefix = self._prefix.get(prefix_index)
                 if prefix is None:
                     prefix = self._prefix[prefix_index] = self.client[
-                        0, "prefix", prefix_index
-                    ]
+                        :, "prefix", prefix_index
+                    ][0]
 
                 self._filenames[index_start + j] = prefix + data["filename"]
                 self._eras[index_start + j] = era_index
@@ -435,7 +435,7 @@ class TiledUproot:
             return {}
 
         def get(self, name):
-            return self._branchesdict[name]
+            return self._branchesdict.get(name)
 
         def maybe_fetch_seekdata(self):
             if not self._fetched:
