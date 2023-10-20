@@ -42,3 +42,16 @@ tree = tiled_uproot.extract.TiledUproot("root_metadata", awkward_client)
 
 array = tree.arrays(["nMuon", "Muon_pt"], entry_start=100, entry_stop=10000)
 array.show(type=True)
+
+array = tree.arrays(
+    ["px", "py", "pz"],
+    cut="nMuon == 2",
+    aliases={
+        "px": "Muon_pt * cosh(Muon_eta) * cos(Muon_phi)",
+        "py": "Muon_pt * cosh(Muon_eta) * sin(Muon_phi)",
+        "pz": "Muon_pt * sinh(Muon_eta)",
+    },
+    entry_start=100,
+    entry_stop=10000,
+)
+array.show(type=True)
