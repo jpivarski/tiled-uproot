@@ -435,7 +435,7 @@ class TiledUproot:
             return {}
 
         def get(self, name):
-            return self._branchesdict[name]
+            return self._branchesdict.get(name)
 
         def maybe_fetch_seekdata(self):
             if not self._fetched:
